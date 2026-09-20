@@ -4,17 +4,90 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../../core/storage/app_database.dart';
+import '../../core/sync/sync_engine.dart';
 import '../auth/auth_scope.dart';
 import '../reader/book_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key, required this.database});
+  const LibraryScreen({
+    super.key,
+    required this.database,
+    this.syncEngine,
+  });
   final AppDatabase database;
+  final SyncEngine? syncEngine;
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
+  bool _syncing = false;
+
+  Future<void> _sync() async {
+    if (widget.syncEngine == null || _syncing) return;
+    setState(() => _syncing = true);
+    final result = await widget.syncEngine!.synchronize();
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.success
+              ? (result.isGuest
+                  ? 'Modo local: conecta tu cuenta para respaldar en la nube.'
+                  : 'Sincronizado con la nube (${result.pushedCount} subidos, ${result.pulledCount} descargados).')
+              : (result.errorMessage ?? 'Error al sincronizar.'),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _showCloudDialog() async {
+    final user = AuthScope.of(context).user;
+    if (user?.isGuest == true) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Respaldar en la nube'),
+          content: const Text(
+            'Actualmente estás usando la app en modo local. Puedes conectar tu cuenta de Google para respaldar tus libros en la nube y acceder a ellos desde otros dispositivos.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Seguir en local'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.account_circle_outlined),
+              label: const Text('Conectar con Google'),
+            ),
+          ],
+        ),
+      );
+      if (proceed == true && mounted) {
+        try {
+          await AuthScope.of(context).service.linkWithGoogle();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cuenta de Google vinculada con éxito.')),
+            );
+            await _sync();
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('No se pudo vincular: $e')),
+            );
+          }
+        }
+      }
+    } else {
+      await _sync();
+    }
+  }
+
   Future<void> _createBook() async {
     final values = await showDialog<Map<String, String>>(
       context: context,
@@ -69,6 +142,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
     );
     if (confirmed == true) {
+      widget.syncEngine?.recordDeletedBook(book.id);
       await widget.database.deleteBook(book.id);
     }
   }
@@ -99,6 +173,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ],
       ),
       actions: [
+        if (widget.syncEngine != null)
+          IconButton(
+            tooltip: AuthScope.of(context).user?.isGuest == true
+                ? 'Conectar cuenta de Google'
+                : 'Sincronizar con la nube',
+            onPressed: _syncing ? null : _showCloudDialog,
+            icon: _syncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    AuthScope.of(context).user?.isGuest == true
+                        ? Icons.cloud_queue_outlined
+                        : Icons.cloud_sync_outlined,
+                  ),
+          ),
         IconButton(
           tooltip: 'Cerrar sesión',
           onPressed: () => AuthScope.of(context).service.signOut(),

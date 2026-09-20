@@ -7,6 +7,7 @@ class AuthUser {
     required this.name,
     required this.email,
     this.photoUrl,
+    this.idToken,
     this.isGoogle = false,
     this.isGuest = false,
   });
@@ -15,8 +16,34 @@ class AuthUser {
   final String name;
   final String email;
   final String? photoUrl;
+  final String? idToken;
   final bool isGoogle;
   final bool isGuest;
+}
+
+/// Datos extraídos tras autenticar con Google.
+class GoogleSignInPayload {
+  const GoogleSignInPayload({
+    required this.id,
+    required this.email,
+    required this.displayName,
+    this.photoUrl,
+    required this.idToken,
+    this.serverAuthCode,
+  });
+
+  final String id;
+  final String email;
+  final String displayName;
+  final String? photoUrl;
+  final String idToken;
+  final String? serverAuthCode;
+}
+
+/// Adaptador para desacoplar el plugin `google_sign_in` de la lógica de negocio.
+abstract class GoogleSignInAdapter {
+  Future<GoogleSignInPayload?> signIn();
+  Future<void> signOut();
 }
 
 /// Error de autenticación con mensaje listo para mostrar en español.
@@ -38,6 +65,9 @@ abstract class AuthService {
   Stream<AuthUser?> get userChanges;
   AuthUser? get currentUser;
 
+  /// Obtiene el token de sesión o idToken para llamadas autenticadas al backend.
+  Future<String?> getIdToken();
+
   Future<AuthUser> signInWithEmail({
     required String email,
     required String password,
@@ -52,6 +82,10 @@ abstract class AuthService {
   /// Inicia sesión con Google. La implementación real debe usar
   /// `google_sign_in` (obtener `idToken`) y verificarlo en el backend.
   Future<AuthUser> signInWithGoogle();
+
+  /// Vincula la sesión actual (por ej. un invitado local) con una cuenta
+  /// de Google para iniciar sincronización en la nube.
+  Future<AuthUser> linkWithGoogle();
 
   /// Permite usar la app en modo local / sin conexión (invitado)
   /// sin requerir registro ni backend.
@@ -83,6 +117,9 @@ class FakeInternetAuthService implements AuthService {
   @override
   AuthUser? get currentUser => _user;
 
+  @override
+  Future<String?> getIdToken() async => _user?.idToken;
+
   Future<T> _network<T>(FutureOr<T> Function() work) async {
     await Future<void>.delayed(const Duration(milliseconds: 800));
     return work();
@@ -106,7 +143,12 @@ class FakeInternetAuthService implements AuthService {
     if (record.password != password) {
       _fail('wrong-password', 'La contraseña no es correcta. Inténtalo de nuevo.');
     }
-    _user = AuthUser(id: record.id, name: record.name, email: key);
+    _user = AuthUser(
+      id: record.id,
+      name: record.name,
+      email: key,
+      idToken: 'jwt_token_${record.id}',
+    );
     _controller.add(_user);
     return _user!;
   });
@@ -128,6 +170,7 @@ class FakeInternetAuthService implements AuthService {
       id: 'u_${DateTime.now().microsecondsSinceEpoch}',
       name: name.trim(),
       email: key,
+      idToken: 'jwt_token_new_user',
     );
     _users[key] = (name: user.name, password: password, id: user.id);
     _user = user;
@@ -146,7 +189,24 @@ class FakeInternetAuthService implements AuthService {
       id: 'google_demo',
       name: 'Cuenta de Google',
       email: 'usuario@gmail.com',
+      idToken: 'google_id_token_demo',
       isGoogle: true,
+    );
+    _controller.add(_user);
+    return _user!;
+  });
+
+  @override
+  Future<AuthUser> linkWithGoogle() => _network(() {
+    _user = AuthUser(
+      id: _user?.isGuest == true
+          ? 'u_${DateTime.now().microsecondsSinceEpoch}'
+          : (_user?.id ?? 'google_linked'),
+      name: 'Cuenta de Google Vinculada',
+      email: 'usuario.vinculado@gmail.com',
+      idToken: 'google_id_token_linked_${DateTime.now().millisecondsSinceEpoch}',
+      isGoogle: true,
+      isGuest: false,
     );
     _controller.add(_user);
     return _user!;

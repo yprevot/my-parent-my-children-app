@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'core/storage/app_database.dart';
+import 'core/sync/sync_api_client.dart';
+import 'core/sync/sync_engine.dart';
 import 'features/auth/auth_scope.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_screen.dart';
@@ -22,6 +24,8 @@ class _ImagesToBookBootstrapState extends State<ImagesToBookBootstrap> {
   // Implementación temporal del backend en internet. Sustituir por el
   // cliente HTTP real sin cambiar las pantallas (mismo AuthService).
   final AuthService _authService = FakeInternetAuthService();
+  final SyncApiClient _apiClient = HttpSyncApiClient();
+  SyncEngine? _syncEngine;
 
   @override
   Widget build(BuildContext context) => AuthScope(
@@ -36,10 +40,18 @@ class _ImagesToBookBootstrapState extends State<ImagesToBookBootstrap> {
           return const ImagesToBookApp(home: _LoadingScreen());
         }
         final database = snapshot.data!;
+        _syncEngine ??= SyncEngine(
+          database: database,
+          authService: _authService,
+          apiClient: _apiClient,
+        );
         return ImagesToBookApp(
           home: AuthGate(
             signInScreen: const LoginScreen(),
-            signedInBuilder: (_) => LibraryScreen(database: database),
+            signedInBuilder: (_) => LibraryScreen(
+              database: database,
+              syncEngine: _syncEngine,
+            ),
           ),
         );
       },

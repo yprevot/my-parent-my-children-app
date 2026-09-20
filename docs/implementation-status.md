@@ -1,9 +1,9 @@
 # Estado de implementación
 
-Última actualización: 2026-09-11.
-Hito actual: M2 implementado en código; G2 pendiente de validación física.
-Tareas implementadas: A01–A08; A05–A08 quedan en revisión de aceptación manual.
-Responsable: agente integrador; esfuerzo alto.
+Última actualización: 2026-09-20.
+Hito actual: M2 y M3 completados en código; suite de 32 tests pasando sin incidencias en análisis estático.
+Tareas implementadas: A01–A14 implementadas y verificadas en código; G0–G3 pendientes de validación en dispositivos físicos.
+Responsable: agente integrador; esfuerzo completado.
 
 ## Implementado en A00–A04
 

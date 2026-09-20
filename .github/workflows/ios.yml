@@ -83,7 +83,7 @@ jobs:
           mkdir -p dist
           APP_PATH="$(find build/ios/iphonesimulator -maxdepth 2 -name '*.app' | head -1)"
           echo "App encontrada: $APP_PATH"
-          ditto -c -k --keepParent "$APP_PATH" "dist/MySchoolMyParents-${VERSION}-ios-simulator.zip"
+          ditto -c -k --keepParent "$APP_PATH" "dist/MySchoolMyParents-Online-${VERSION}-ios-simulator.zip"
           ls -lh dist/
 
       # IPA firmada opcional. Requiere en secrets:
@@ -123,14 +123,14 @@ jobs:
         if: steps.signing.outputs.available == 'true'
         run: |
           VERSION="${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
-          find build/ios/ipa -name '*.ipa' -exec cp {} "dist/MySchoolMyParents-${VERSION}-ios.ipa" \;
+          find build/ios/ipa -name '*.ipa' -exec cp {} "dist/MySchoolMyParents-Online-${VERSION}-ios.ipa" \;
           ls -lh dist/
 
       - name: Publicar en GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-ios-{0}', steps.version.outputs.build_name) }}
-          name: "MySchoolMyParents iOS ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
+          name: "MySchoolMyParents Online iOS ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
           body: |
             ## iOS ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}
 

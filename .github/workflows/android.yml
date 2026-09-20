@@ -106,15 +106,15 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/MySchoolMyParents-${VERSION}-android.apk"
-          cp build/app/outputs/bundle/release/app-release.aab "dist/MySchoolMyParents-${VERSION}-android.aab"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/MySchoolMyParents-Online-${VERSION}-android.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/MySchoolMyParents-Online-${VERSION}-android.aab"
           ls -lh dist/
 
       - name: Publicar en GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-android-{0}', steps.version.outputs.build_name) }}
-          name: "MySchoolMyParents Android ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
+          name: "MySchoolMyParents Online Android ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
           body: |
             ## Android ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}
 

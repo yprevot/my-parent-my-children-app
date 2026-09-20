@@ -1,4 +1,4 @@
-# Dominio de MySchoolMyParents
+# Dominio de MySchoolMyParents Online
 
 Dominio canónico:
 

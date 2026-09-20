@@ -567,7 +567,7 @@ class _ProbeScreenState extends State<ProbeScreen> with WidgetsBindingObserver {
     listenable: _speech,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const Text('MySchoolMyParents'),
+        title: const Text('MySchoolMyParents Online'),
         actions: [
           IconButton(
             tooltip: 'Información de la prueba',

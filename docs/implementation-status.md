@@ -44,6 +44,6 @@ y disponibilidad sin red deberá distinguirse de callbacks y simuladores.
 
 El dominio canónico reservado es `myschoolmyparents.online`; falta configurar sus credenciales OAuth cuando comience A16.
 
-El logo generado para MySchoolMyParents se encuentra en
+El logo generado para MySchoolMyParents Online se encuentra en
 `assets/branding/my_school_my_parents_logo.png` y ya está integrado en la pantalla de
 biblioteca.

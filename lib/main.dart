@@ -66,7 +66,7 @@ class ImagesToBookApp extends StatelessWidget {
   final Widget? home;
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'MySchoolMyParents',
+    title: 'MySchoolMyParents Online',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff4f46e5)),

@@ -60,11 +60,20 @@ jobs:
           cd ios
           pod install --repo-update
 
-      # Build sin firma para validar que iOS compila en CI y dejar un
-      # artefacto descargable de simulador. No es instalable en iPhone físico.
-      - name: Build iOS simulador (no-codesign)
+      # Valida que el target de dispositivo compila en release sin firma.
+      # El .app resultante sin firmar no es instalable; el artefacto
+      # descargable de simulador se genera en el paso siguiente.
+      - name: Build iOS device (release, no-codesign)
         run: >
-          flutter build ios --simulator --release --no-codesign
+          flutter build ios --release --no-codesign
+          --build-name="${{ steps.version.outputs.build_name }}"
+          --build-number="${{ steps.version.outputs.build_number }}"
+
+      # Build de simulador (solo debug, Apple no soporta release en
+      # simulador). El .app se empaqueta para probar en Simulator.
+      - name: Build iOS simulador (debug, no-codesign)
+        run: >
+          flutter build ios --simulator --no-codesign
           --build-name="${{ steps.version.outputs.build_name }}"
           --build-number="${{ steps.version.outputs.build_number }}"
 

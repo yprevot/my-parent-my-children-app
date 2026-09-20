@@ -68,14 +68,24 @@ jobs:
       # Para Play Store configura estos secrets:
       # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
       # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      # Nota: el contenido del secret se lee en `env` (permitido) y se
+      # comprueba en bash, porque `secrets` no está disponible en `if:`.
       - name: Configurar firma release (si hay secrets)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "Sin keystore: build con firma debug (solo pruebas/sideload)."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
           cat > android/key.properties <<EOF
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
           storeFile=$RUNNER_TEMP/release.keystore
           EOF
           echo "Firma release configurada."

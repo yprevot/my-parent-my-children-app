@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../../core/storage/app_database.dart';
+import '../auth/auth_scope.dart';
 import '../reader/book_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -163,6 +164,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           const Text('Mis libros'),
         ],
       ),
+      actions: [
+        IconButton(
+          tooltip: 'Cerrar sesión',
+          onPressed: () => AuthScope.of(context).service.signOut(),
+          icon: const Icon(Icons.logout_outlined),
+        ),
+      ],
     ),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: _createBook,

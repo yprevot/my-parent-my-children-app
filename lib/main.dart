@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'core/storage/app_database.dart';
+import 'features/auth/auth_scope.dart';
+import 'features/auth/auth_service.dart';
+import 'features/auth/login_screen.dart';
 import 'features/library/library_screen.dart';
 
 void main() {
@@ -16,14 +19,31 @@ class ImagesToBookBootstrap extends StatefulWidget {
 
 class _ImagesToBookBootstrapState extends State<ImagesToBookBootstrap> {
   late final Future<AppDatabase> _database = openAppDatabase();
+  // Implementación temporal del backend en internet. Sustituir por el
+  // cliente HTTP real sin cambiar las pantallas (mismo AuthService).
+  final AuthService _authService = FakeInternetAuthService();
+
   @override
-  Widget build(BuildContext context) => FutureBuilder<AppDatabase>(
-    future: _database,
-    builder: (context, snapshot) {
-      if (snapshot.hasError) return ImagesToBookApp(home: _DatabaseError(error: snapshot.error));
-      if (!snapshot.hasData) return const ImagesToBookApp(home: _LoadingScreen());
-      return ImagesToBookApp(home: LibraryScreen(database: snapshot.data!));
-    },
+  Widget build(BuildContext context) => AuthScope(
+    service: _authService,
+    child: FutureBuilder<AppDatabase>(
+      future: _database,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return ImagesToBookApp(home: _DatabaseError(error: snapshot.error));
+        }
+        if (!snapshot.hasData) {
+          return const ImagesToBookApp(home: _LoadingScreen());
+        }
+        final database = snapshot.data!;
+        return ImagesToBookApp(
+          home: AuthGate(
+            signInScreen: const LoginScreen(),
+            signedInBuilder: (_) => LibraryScreen(database: database),
+          ),
+        );
+      },
+    ),
   );
 }
 

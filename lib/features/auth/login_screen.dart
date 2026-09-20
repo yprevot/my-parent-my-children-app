@@ -66,6 +66,20 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _localMode() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _service.signInLocally();
+    } on AuthException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _goRegister() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const RegisterScreen()),
@@ -168,6 +182,12 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       const SizedBox(height: 16),
       GoogleSignInButton(onPressed: _google, busy: _googleBusy),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: (_busy || _googleBusy) ? null : _localMode,
+        icon: const Icon(Icons.offline_pin_outlined),
+        label: const Text('Continuar sin cuenta (Modo local)'),
+      ),
       const SizedBox(height: 16),
       Wrap(
         alignment: WrapAlignment.center,

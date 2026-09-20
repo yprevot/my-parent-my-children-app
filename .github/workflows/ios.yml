@@ -55,6 +55,9 @@ jobs:
       - name: Analyze (lib)
         run: flutter analyze lib
 
+      - name: Run tests
+        run: flutter test
+
       - name: Pod install
         run: |
           cd ios

@@ -8,6 +8,7 @@ class AuthUser {
     required this.email,
     this.photoUrl,
     this.isGoogle = false,
+    this.isGuest = false,
   });
 
   final String id;
@@ -15,6 +16,7 @@ class AuthUser {
   final String email;
   final String? photoUrl;
   final bool isGoogle;
+  final bool isGuest;
 }
 
 /// Error de autenticación con mensaje listo para mostrar en español.
@@ -50,6 +52,10 @@ abstract class AuthService {
   /// Inicia sesión con Google. La implementación real debe usar
   /// `google_sign_in` (obtener `idToken`) y verificarlo en el backend.
   Future<AuthUser> signInWithGoogle();
+
+  /// Permite usar la app en modo local / sin conexión (invitado)
+  /// sin requerir registro ni backend.
+  Future<AuthUser> signInLocally();
 
   Future<void> sendPasswordReset({required String email});
 
@@ -145,6 +151,18 @@ class FakeInternetAuthService implements AuthService {
     _controller.add(_user);
     return _user!;
   });
+
+  @override
+  Future<AuthUser> signInLocally() async {
+    _user = const AuthUser(
+      id: 'local_guest',
+      name: 'Invitado Local',
+      email: 'local@device',
+      isGuest: true,
+    );
+    _controller.add(_user);
+    return _user!;
+  }
 
   @override
   Future<void> sendPasswordReset({required String email}) => _network(() {

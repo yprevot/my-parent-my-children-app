@@ -92,5 +92,12 @@ void main() {
       expect(user.isGoogle, isTrue);
       expect(service.currentUser, isNotNull);
     });
+
+    test('modo local / invitado no requiere red', () async {
+      final service = FakeInternetAuthService();
+      final user = await service.signInLocally();
+      expect(user.isGuest, isTrue);
+      expect(service.currentUser?.isGuest, isTrue);
+    });
   });
 }

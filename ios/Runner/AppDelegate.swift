@@ -16,6 +16,17 @@ import Vision
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ImagesToBookOcr") else { return }
     ocrChannel = FlutterMethodChannel(name: "images_to_book/ocr", binaryMessenger: registrar.messenger())
     ocrChannel?.setMethodCallHandler { call, result in
+      if call.method == "openTtsSettings" {
+        if let settingsUrl = URL(string: UIApplication.openSettingsURLString),
+           UIApplication.shared.canOpenURL(settingsUrl) {
+          UIApplication.shared.open(settingsUrl, options: [:]) { _ in
+            result(true)
+          }
+        } else {
+          result(false)
+        }
+        return
+      }
       guard call.method == "recognize" else { result(FlutterMethodNotImplemented); return }
       guard let args = call.arguments as? [String: Any], let path = args["path"] as? String else {
         result(FlutterError(code: "invalid_path", message: "Falta la imagen.", details: nil)); return

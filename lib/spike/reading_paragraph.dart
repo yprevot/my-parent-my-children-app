@@ -8,11 +8,13 @@ class ReadingParagraph extends StatefulWidget {
     required this.text,
     required this.onSelection,
     required this.onListen,
+    this.activeWordRange,
     this.fontSize = 22,
   });
   final String text;
   final ValueChanged<TextRangeSlice?> onSelection;
   final ValueChanged<String> onListen;
+  final TextRangeSlice? activeWordRange;
   final double fontSize;
 
   @override
@@ -22,14 +24,50 @@ class ReadingParagraph extends StatefulWidget {
 class _ReadingParagraphState extends State<ReadingParagraph> {
   TextRangeSlice? _range;
 
+  TextSpan _buildTextSpan(BuildContext context) {
+    final baseStyle = TextStyle(
+      fontSize: widget.fontSize,
+      height: 1.6,
+      color: Theme.of(context).colorScheme.onSurface,
+    );
+
+    final range = widget.activeWordRange;
+    if (range == null ||
+        range.start < 0 ||
+        range.end > widget.text.length ||
+        range.start >= range.end) {
+      return TextSpan(text: widget.text, style: baseStyle);
+    }
+
+    final theme = Theme.of(context);
+    final highlightStyle = baseStyle.copyWith(
+      backgroundColor: theme.colorScheme.primary,
+      color: theme.colorScheme.onPrimary,
+      fontWeight: FontWeight.bold,
+    );
+
+    return TextSpan(
+      style: baseStyle,
+      children: [
+        if (range.start > 0)
+          TextSpan(text: widget.text.substring(0, range.start)),
+        TextSpan(
+          text: widget.text.substring(range.start, range.end),
+          style: highlightStyle,
+        ),
+        if (range.end < widget.text.length)
+          TextSpan(text: widget.text.substring(range.end)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Semantics(
     container: true,
     label:
         'Texto de lectura. Selecciona una palabra o una parte para escucharla.',
-    child: SelectableText(
-      widget.text,
-      style: TextStyle(fontSize: widget.fontSize, height: 1.6),
+    child: SelectableText.rich(
+      _buildTextSpan(context),
       onSelectionChanged: (selection, cause) {
         if (!selection.isValid) return;
         final range = selection.isCollapsed

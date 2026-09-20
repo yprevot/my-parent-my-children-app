@@ -32,15 +32,26 @@ class MainActivity : FlutterActivity() {
                         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                         recognizer.process(image)
                             .addOnSuccessListener { text ->
-                                result.success(mapOf("rawText" to text.text,
+                                val payload = mapOf(
+                                    "rawText" to text.text,
                                     "paragraphs" to text.textBlocks.map { it.text },
                                     "lines" to text.textBlocks.flatMap { it.lines }.map { line ->
                                         val box = line.boundingBox
-                                        mapOf("text" to line.text, "left" to box?.left,
-                                            "top" to box?.top, "width" to box?.width(), "height" to box?.height())
-                                    }, "engine" to "mlkit-latin-16.0.1"))
+                                        mapOf(
+                                            "text" to line.text,
+                                            "left" to box?.left,
+                                            "top" to box?.top,
+                                            "width" to box?.width(),
+                                            "height" to box?.height()
+                                        )
+                                    },
+                                    "engine" to "mlkit-latin-16.0.1"
+                                )
+                                runOnUiThread { result.success(payload) }
                             }
-                            .addOnFailureListener { result.error("ocr_failed", "No se pudo leer esta imagen.", null) }
+                            .addOnFailureListener {
+                                runOnUiThread { result.error("ocr_failed", "No se pudo leer esta imagen.", null) }
+                            }
                             .addOnCompleteListener { recognizer.close() }
                     } catch (_: Exception) {
                         runOnUiThread { result.error("image_failed", "No se pudo abrir esta imagen.", null) }

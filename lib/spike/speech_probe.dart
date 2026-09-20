@@ -45,6 +45,11 @@ class SpeechProbe extends ChangeNotifier {
   bool _acceptProgress = false;
   Future<void> _commands = Future<void>.value();
 
+  TextRangeSlice? get currentWordRange {
+    if (state != ProbePlayback.speaking || rangeEnd <= rangeStart) return null;
+    return TextRangeSlice(rangeStart, rangeEnd);
+  }
+
   void _changed() {
     if (!_closed) notifyListeners();
   }
@@ -57,19 +62,24 @@ class SpeechProbe extends ChangeNotifier {
         IosTextToSpeechAudioCategoryOptions.duckOthers,
       ]);
     }
-    final raw = await _engine.getVoices as List<dynamic>;
+    final dynamic rawVoices = await _engine.getVoices;
+    final raw = (rawVoices is List) ? rawVoices : const <dynamic>[];
     voices =
         raw
             .map((dynamic item) {
-              final map = Map<String, dynamic>.from(item as Map);
+              if (item is! Map) return null;
+              final map = Map<String, dynamic>.from(item);
+              final name = (map['name'] as String?) ?? 'Voice';
+              final rawLocale = (map['locale'] as String?) ?? 'en-US';
               return ProbeVoice(
-                map['name'] as String,
-                (map['locale'] as String).replaceAll('_', '-'),
+                name,
+                rawLocale.replaceAll('_', '-'),
                 map['network_required'] is bool
                     ? map['network_required'] as bool
                     : null,
               );
             })
+            .whereType<ProbeVoice>()
             // Algunos motores Android no devuelven `network_required`. En ese
             // caso la voz sigue siendo utilizable y no debemos ocultarla.
             .where((v) => !Platform.isAndroid || v.requiresNetwork != true)
@@ -196,11 +206,13 @@ class SpeechProbe extends ChangeNotifier {
       activeParagraph = -1;
       currentParagraph = 0;
       currentOffset = 0;
+      rangeStart = rangeEnd = 0;
       _changed();
     } catch (_) {
       if (generation != _generation || _closed) return;
       _acceptProgress = false;
       state = ProbePlayback.failed;
+      rangeStart = rangeEnd = 0;
       error = 'No pudimos reproducir el texto. Comprueba la voz instalada.';
       _changed();
       rethrow;
@@ -232,6 +244,7 @@ class SpeechProbe extends ChangeNotifier {
     _acceptProgress = false;
     state = ProbePlayback.idle;
     activeParagraph = -1;
+    rangeStart = rangeEnd = 0;
     _commands = _commands.then((_) async {
       await _engine.stop();
     });

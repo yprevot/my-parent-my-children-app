@@ -402,6 +402,23 @@ class AppDatabase extends _$AppDatabase {
           contentRevision: const Value.absent(),
         ),
       );
+      // Re-normalizar los orderKey de todos los párrafos del libro para
+      // garantizar orden secuencial estricto sin solapamientos entre páginas.
+      final allPages = await (select(pages)
+            ..where((page) => page.bookId.equals(draft.bookId))
+            ..orderBy([(page) => OrderingTerm.asc(page.orderKey)]))
+          .get();
+      var paragraphOrder = 0;
+      for (final page in allPages) {
+        final pageParagraphs = await (select(paragraphs)
+              ..where((p) => p.pageId.equals(page.id))
+              ..orderBy([(p) => OrderingTerm.asc(p.orderKey)]))
+            .get();
+        for (final paragraph in pageParagraphs) {
+          await (update(paragraphs)..where((row) => row.id.equals(paragraph.id)))
+              .write(ParagraphsCompanion(orderKey: Value(paragraphOrder++)));
+        }
+      }
     });
   }
 
@@ -462,12 +479,74 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<void> deleteBook(String id) async {
+  Future<void> deletePage(String pageId) async {
+    final page = await (select(pages)..where((p) => p.id.equals(pageId))).getSingleOrNull();
+    if (page == null) return;
+    final bookId = page.bookId;
+    final originalPath = page.originalPath;
+    final derivedPath = page.derivedPath;
     await transaction(() async {
+      await (delete(paragraphs)..where((p) => p.pageId.equals(pageId))).go();
+      await (delete(pageDrafts)..where((d) => d.pageId.equals(pageId))).go();
+      await (delete(importJobs)..where((j) => j.pageId.equals(pageId))).go();
+      await (delete(pages)..where((p) => p.id.equals(pageId))).go();
+
+      final remainingPages = await (select(pages)
+            ..where((p) => p.bookId.equals(bookId))
+            ..orderBy([(p) => OrderingTerm.asc(p.orderKey)]))
+          .get();
+      var pageOrder = 0;
+      var paragraphOrder = 0;
+      for (final p in remainingPages) {
+        await (update(pages)..where((row) => row.id.equals(p.id)))
+            .write(PagesCompanion(orderKey: Value(pageOrder++)));
+        final pList = await (select(paragraphs)
+              ..where((row) => row.pageId.equals(p.id))
+              ..orderBy([(row) => OrderingTerm.asc(row.orderKey)]))
+            .get();
+        for (final para in pList) {
+          await (update(paragraphs)..where((row) => row.id.equals(para.id)))
+              .write(ParagraphsCompanion(orderKey: Value(paragraphOrder++)));
+        }
+      }
+      await (update(books)..where((b) => b.id.equals(bookId))).write(
+        BooksCompanion(updatedAt: Value(DateTime.now())),
+      );
+    });
+    _deleteFileIfExists(originalPath);
+    _deleteFileIfExists(derivedPath);
+  }
+
+  Future<void> deleteBook(String id) async {
+    final bookPages = await (select(pages)..where((p) => p.bookId.equals(id))).get();
+    final filePaths = <String?>[
+      for (final p in bookPages) ...[p.originalPath, p.derivedPath],
+    ];
+    final jobs = await (select(importJobs)..where((j) => j.bookId.equals(id))).get();
+    for (final j in jobs) {
+      filePaths.add(j.imagePath);
+    }
+    await transaction(() async {
+      await (delete(pageDrafts)..where((d) => d.bookId.equals(id))).go();
+      await (delete(importJobs)..where((j) => j.bookId.equals(id))).go();
       await (delete(paragraphs)..where((p) => p.bookId.equals(id))).go();
       await (delete(pages)..where((p) => p.bookId.equals(id))).go();
       await (delete(books)..where((b) => b.id.equals(id))).go();
     });
+    for (final path in filePaths) {
+      _deleteFileIfExists(path);
+    }
+  }
+
+  void _deleteFileIfExists(String? path) {
+    if (path != null && path.isNotEmpty) {
+      try {
+        final file = File(path);
+        if (file.existsSync()) {
+          file.deleteSync();
+        }
+      } catch (_) {}
+    }
   }
 }
 

@@ -95,6 +95,28 @@ void main() {
     );
     semantics.dispose();
   });
+
+  testWidgets('ReadingParagraph resalta palabra activa con TextSpan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ReadingParagraph(
+            text: 'Hello world',
+            activeWordRange: TextRangeSlice(6, 11),
+            onSelection: _ignoreSelection,
+            onListen: _ignoreText,
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(SelectableText), findsOneWidget);
+    final selectableText = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    expect(selectableText.textSpan, isNotNull);
+  });
 }
 
 void _ignoreSelection(TextRangeSlice? _) {}

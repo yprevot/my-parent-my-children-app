@@ -16,76 +16,10 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _createBook() async {
-    final controller = TextEditingController();
-    var homeLocale = 'es-MX';
-    var learningLocale = 'en-US';
     final values = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Crear libro'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Título',
-                    hintText: 'Ej. Lecturas de inglés',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: homeLocale,
-                  decoration: const InputDecoration(
-                    labelText: 'Idioma nativo de la familia',
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'es-MX', child: Text('Español')),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => homeLocale = value ?? 'es-MX'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: learningLocale,
-                  decoration: const InputDecoration(
-                    labelText: 'Idioma que vamos a leer',
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'en-US', child: Text('English')),
-                    DropdownMenuItem(value: 'es-MX', child: Text('Español')),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => learningLocale = value ?? 'en-US'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, {
-                'title': controller.text,
-                'homeLocale': homeLocale,
-                'learningLocale': learningLocale,
-              }),
-              child: const Text('Crear'),
-            ),
-          ],
-        ),
-      ),
+      builder: (context) => const _CreateBookDialog(),
     );
-    // El TextField puede seguir participando en la animación de cierre del
-    // diálogo durante un frame después de que showDialog termine.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.dispose();
     final title = values?['title'];
     if (!mounted || title == null || title.trim().isEmpty) return;
     final now = DateTime.now();
@@ -239,60 +173,63 @@ class _LibraryScreenState extends State<LibraryScreen> {
             itemBuilder: (context, index) {
               final book = books[index];
               return Card(
-                child: InkWell(
-                  onTap: () => _open(book),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(8),
+                clipBehavior: Clip.antiAlias,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _open(book),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                          child: const Icon(Icons.menu_book_outlined, size: 28),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                book.title,
-                                style: Theme.of(context).textTheme.titleMedium,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                              Container(
+                                width: 44,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.menu_book_outlined, size: 28),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Leer en ${_friendlyLocale(book.learningLocale)}',
-                                style: Theme.of(context).textTheme.bodyMedium,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      book.title,
+                                      style: Theme.of(context).textTheme.titleMedium,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Leer en ${_friendlyLocale(book.learningLocale)}',
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.chevron_right_outlined,
-                          size: 28,
-                        ),
-                        IconButton(
-                          tooltip: 'Eliminar libro',
-                          onPressed: () => _delete(book),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    IconButton(
+                      tooltip: 'Eliminar libro',
+                      onPressed: () => _delete(book),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                 ),
               );
             },
@@ -302,3 +239,83 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 }
+
+class _CreateBookDialog extends StatefulWidget {
+  const _CreateBookDialog();
+
+  @override
+  State<_CreateBookDialog> createState() => _CreateBookDialogState();
+}
+
+class _CreateBookDialogState extends State<_CreateBookDialog> {
+  final _controller = TextEditingController();
+  String _learningLocale = 'en-US';
+  final String _homeLocale = 'es-MX';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Nuevo libro'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Título del libro',
+                hintText: 'Ej. Harry Potter, Ciencias Naturales...',
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _learningLocale,
+              decoration: const InputDecoration(
+                labelText: 'Idioma del libro (para voz)',
+              ),
+              items: const [
+                DropdownMenuItem(value: 'en-US', child: Text('Inglés (US)')),
+                DropdownMenuItem(value: 'en-GB', child: Text('Inglés (UK)')),
+                DropdownMenuItem(value: 'es-MX', child: Text('Español')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _learningLocale = val);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Crear'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final title = _controller.text.trim();
+    if (title.isEmpty) return;
+    Navigator.pop(context, {
+      'title': title,
+      'learningLocale': _learningLocale,
+      'homeLocale': _homeLocale,
+    });
+  }
+}
+

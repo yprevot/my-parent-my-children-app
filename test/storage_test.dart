@@ -276,4 +276,154 @@ void main() {
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
     },
   );
+
+  test('orderKey es continuo y ordenado globalmente al añadir páginas', () async {
+    final now = DateTime.now();
+    await database.into(database.books).insert(
+      BooksCompanion.insert(
+        id: 'book-continuous',
+        title: 'Continuous',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+
+    // Página 1 con 2 párrafos
+    await database.addPageWithParagraphs(
+      bookId: 'book-continuous',
+      pageId: 'page-1',
+      imagePath: null,
+      texts: const ['P1-A', 'P1-B'],
+    );
+    await database.approveDraft(
+      (await database.watchDrafts('book-continuous').first).single,
+      const ['P1-A', 'P1-B'],
+    );
+
+    // Página 2 con 3 párrafos
+    await database.addPageWithParagraphs(
+      bookId: 'book-continuous',
+      pageId: 'page-2',
+      imagePath: null,
+      texts: const ['P2-A', 'P2-B', 'P2-C'],
+    );
+    await database.approveDraft(
+      (await database.watchDrafts('book-continuous').first).single,
+      const ['P2-A', 'P2-B', 'P2-C'],
+    );
+
+    final paragraphs = await database.watchParagraphs('book-continuous').first;
+    expect(paragraphs.map((p) => p.content).toList(), [
+      'P1-A',
+      'P1-B',
+      'P2-A',
+      'P2-B',
+      'P2-C',
+    ]);
+    expect(
+      paragraphs.map((p) => p.orderKey).toList(),
+      [0, 1, 2, 3, 4],
+    );
+  });
+
+  test('deletePage elimina párrafos, borradores y reordena páginas restantes', () async {
+    final now = DateTime.now();
+    await database.into(database.books).insert(
+      BooksCompanion.insert(
+        id: 'book-del',
+        title: 'Delete test',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+
+    await database.addPageWithParagraphs(
+      bookId: 'book-del',
+      pageId: 'page-1',
+      imagePath: null,
+      texts: const ['Page 1 content'],
+    );
+    await database.approveDraft(
+      (await database.watchDrafts('book-del').first).single,
+      const ['Page 1 content'],
+    );
+
+    await database.addPageWithParagraphs(
+      bookId: 'book-del',
+      pageId: 'page-2',
+      imagePath: null,
+      texts: const ['Page 2 content'],
+    );
+    await database.approveDraft(
+      (await database.watchDrafts('book-del').first).single,
+      const ['Page 2 content'],
+    );
+
+    await database.addPageWithParagraphs(
+      bookId: 'book-del',
+      pageId: 'page-3',
+      imagePath: null,
+      texts: const ['Page 3 content'],
+    );
+    await database.approveDraft(
+      (await database.watchDrafts('book-del').first).single,
+      const ['Page 3 content'],
+    );
+
+    // Borrar página 2
+    await database.deletePage('page-2');
+
+    final remainingPages = await database.watchPages('book-del').first;
+    expect(remainingPages.map((p) => p.id).toList(), ['page-1', 'page-3']);
+    expect(remainingPages[0].orderKey, 0);
+    expect(remainingPages[1].orderKey, 1);
+
+    final remainingParagraphs = await database.watchParagraphs('book-del').first;
+    expect(
+      remainingParagraphs.map((p) => p.content).toList(),
+      ['Page 1 content', 'Page 3 content'],
+    );
+    expect(
+      remainingParagraphs.map((p) => p.orderKey).toList(),
+      [0, 1],
+    );
+  });
+
+  test('deleteBook elimina en cascada borradores, trabajos, páginas y párrafos', () async {
+    final now = DateTime.now();
+    await database.into(database.books).insert(
+      BooksCompanion.insert(
+        id: 'book-cascade',
+        title: 'Cascade test',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+
+    await database.createQueuedPage(
+      bookId: 'book-cascade',
+      pageId: 'page-cascade',
+      jobId: 'job-cascade',
+      imagePath: '/fake/img.jpg',
+    );
+
+    await database.saveDraft(
+      bookId: 'book-cascade',
+      pageId: 'page-cascade',
+      jobId: 'job-cascade',
+      rawText: 'Draft text',
+      paragraphs: const ['Draft text'],
+    );
+
+    expect(await database.watchDrafts('book-cascade').first, isNotEmpty);
+    expect(await database.findJob('job-cascade'), isNotNull);
+
+    await database.deleteBook('book-cascade');
+
+    expect(await database.findBook('book-cascade'), isNull);
+    expect(await database.watchPages('book-cascade').first, isEmpty);
+    expect(await database.watchParagraphs('book-cascade').first, isEmpty);
+    expect(await database.watchDrafts('book-cascade').first, isEmpty);
+    expect(await database.findJob('job-cascade'), isNull);
+  });
 }

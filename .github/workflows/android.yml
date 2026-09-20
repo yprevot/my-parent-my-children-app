@@ -63,6 +63,9 @@ jobs:
       - name: Analyze (lib)
         run: flutter analyze lib
 
+      - name: Run tests
+        run: flutter test
+
       # Firma release opcional. Si no hay secrets, se usa la firma debug
       # configurada en android/app/build.gradle.kts (válido para sideload/pruebas).
       # Para Play Store configura estos secrets:

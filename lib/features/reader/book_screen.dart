@@ -179,6 +179,24 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _recoverAndProcess() async {
+    if (Platform.isAndroid) {
+      try {
+        final lost = await _picker.retrieveLostData();
+        if (lost.files != null && lost.files!.isNotEmpty) {
+          for (var i = 0; i < lost.files!.length; i++) {
+            final file = lost.files![i];
+            final persisted = await _ocr.persist(file.path);
+            final pageId = '${DateTime.now().microsecondsSinceEpoch}_lost_$i';
+            await widget.database.createQueuedPage(
+              bookId: widget.book.id,
+              pageId: pageId,
+              jobId: '${pageId}_job',
+              imagePath: persisted,
+            );
+          }
+        }
+      } catch (_) {}
+    }
     await widget.database.recoverInterruptedJobs(widget.book.id);
     await _runQueue();
   }
@@ -329,25 +347,84 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
     List<Paragraph> paragraphs, {
     int? index,
     String? excerpt,
+    int? startOffset,
   }) async {
     try {
-      await _speech.play(
-        excerpt != null
-            ? [excerpt]
-            : index == null
-            ? [paragraphs.map((p) => p.content).join('\n\n')]
-            : [paragraphs[index].content],
-        // "Escuchar todo" es una acción explícita de reinicio. La posición
-        // guardada se reserva para una futura acción de continuar.
-        startParagraph: 0,
-        startOffset: 0,
-        activeParagraphBase: index ?? 0,
-      );
+      if (excerpt != null) {
+        await _speech.play(
+          [excerpt],
+          startParagraph: 0,
+          startOffset: 0,
+          activeParagraphBase: index ?? 0,
+        );
+      } else if (index != null) {
+        await _speech.play(
+          [paragraphs[index].content],
+          startParagraph: 0,
+          startOffset: startOffset ?? 0,
+          activeParagraphBase: index,
+        );
+      } else {
+        // Enviar la lista de todos los párrafos individuales para que el motor
+        // TTS avance entre párrafos de forma secuencial y actualice activeParagraph.
+        await _speech.play(
+          paragraphs.map((p) => p.content).toList(),
+          startParagraph: 0,
+          startOffset: 0,
+          activeParagraphBase: 0,
+        );
+      }
     } catch (_) {
       if (mounted) {
         setState(
           () => _error =
               'No se pudo reproducir. Revisa la voz instalada para $_learningLocale.',
+        );
+      }
+    }
+  }
+
+  Future<void> _resume(List<Paragraph> paragraphs) async {
+    if (paragraphs.isEmpty) return;
+    final currentBook =
+        await widget.database.findBook(widget.book.id) ?? widget.book;
+    final pIndex =
+        currentBook.lastParagraph.clamp(0, paragraphs.length - 1);
+    final offset = currentBook.lastOffset;
+    try {
+      await _speech.play(
+        paragraphs.map((p) => p.content).toList(),
+        startParagraph: pIndex,
+        startOffset: offset,
+        activeParagraphBase: 0,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'No se pudo reanudar la lectura. Revisa la voz instalada para $_learningLocale.',
+        );
+      }
+    }
+  }
+
+  Future<void> _goToParagraph(
+    List<Paragraph> paragraphs,
+    int targetIndex,
+  ) async {
+    if (targetIndex < 0 || targetIndex >= paragraphs.length) return;
+    try {
+      await _speech.play(
+        paragraphs.map((p) => p.content).toList(),
+        startParagraph: targetIndex,
+        startOffset: 0,
+        activeParagraphBase: 0,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'No se pudo cambiar de párrafo. Revisa la voz instalada para $_learningLocale.',
         );
       }
     }
@@ -449,6 +526,13 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
               icon: const Icon(Icons.play_arrow),
               label: const Text('Escuchar todo'),
             ),
+            OutlinedButton.icon(
+              onPressed: paragraphs.isEmpty || _speech.voice == null
+                  ? null
+                  : () => _resume(paragraphs),
+              icon: const Icon(Icons.history_outlined),
+              label: const Text('Continuar'),
+            ),
             IconButton(
               tooltip: 'Pausar o continuar',
               onPressed: _speech.state == ProbePlayback.speaking
@@ -461,6 +545,36 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                     ? Icons.play_arrow
                     : Icons.pause,
               ),
+            ),
+            IconButton(
+              tooltip: 'Detener lectura',
+              onPressed: _speech.state == ProbePlayback.speaking ||
+                      _speech.state == ProbePlayback.paused
+                  ? _speech.stop
+                  : null,
+              icon: const Icon(Icons.stop_outlined),
+            ),
+            IconButton(
+              tooltip: 'Párrafo anterior',
+              onPressed: _speech.activeParagraph > 0
+                  ? () => _goToParagraph(paragraphs, _speech.activeParagraph - 1)
+                  : null,
+              icon: const Icon(Icons.skip_previous_outlined),
+            ),
+            IconButton(
+              tooltip: 'Repetir párrafo',
+              onPressed: _speech.activeParagraph >= 0
+                  ? () => _goToParagraph(paragraphs, _speech.activeParagraph)
+                  : null,
+              icon: const Icon(Icons.replay_outlined),
+            ),
+            IconButton(
+              tooltip: 'Párrafo siguiente',
+              onPressed: _speech.activeParagraph >= 0 &&
+                      _speech.activeParagraph < paragraphs.length - 1
+                  ? () => _goToParagraph(paragraphs, _speech.activeParagraph + 1)
+                  : null,
+              icon: const Icon(Icons.skip_next_outlined),
             ),
           ],
         ),
@@ -799,6 +913,7 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                   container: true,
                   label: 'Página ${index + 1}. Estado: $status.',
                   child: ExpansionTile(
+                    initiallyExpanded: true,
                     leading: CircleAvatar(child: Text('${index + 1}')),
                     title: Text('Página ${index + 1}'),
                     subtitle: Text(
@@ -813,6 +928,8 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                           _movePage(index, index + 1);
                         } else if (value == 'reprocess') {
                           _reprocess(page);
+                        } else if (value == 'delete') {
+                          _deletePage(page);
                         }
                       },
                       itemBuilder: (context) => [
@@ -840,6 +957,14 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                           child: const ListTile(
                             leading: Icon(Icons.refresh),
                             title: Text('Reprocesar foto'),
+                            dense: true,
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: ListTile(
+                            leading: Icon(Icons.delete_outline, color: Colors.red),
+                            title: Text('Eliminar página', style: TextStyle(color: Colors.red)),
                             dense: true,
                           ),
                         ),
@@ -897,9 +1022,69 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
     await _runQueue();
     if (mounted) {
       setState(
-        () => _progress = 'Página marcada para reprocesar; el texto anterior se conserva hasta aprobar el nuevo.',
+        () => _progress =
+            'Página marcada para reprocesar; el texto anterior se conserva hasta aprobar el nuevo.',
       );
     }
+  }
+
+  Future<void> _deletePage(storage.Page page) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Eliminar esta página?'),
+        content: const Text(
+          'Se eliminarán sus fotos y párrafos del libro. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await widget.database.deletePage(page.id);
+      if (mounted) {
+        setState(() => _progress = 'Página eliminada.');
+      }
+    }
+  }
+
+  void _showImageZoom(String imagePath) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppBar(
+              title: const Text('Foto de la página'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            Flexible(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4.0,
+                child: Image.file(
+                  File(imagePath),
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _draftCard(
@@ -931,19 +1116,50 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
           ),
           if (imagePath != null) ...[
             const SizedBox(height: 12),
-            ClipRRect(
+            InkWell(
+              onTap: () => _showImageZoom(imagePath),
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(imagePath),
-                height: 180,
-                width: double.infinity,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => const SizedBox(
-                  height: 48,
-                  child: Center(
-                    child: Text('La foto original ya no está disponible.'),
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(
+                      File(imagePath),
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const SizedBox(
+                        height: 48,
+                        child: Center(
+                          child: Text('La foto original ya no está disponible.'),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.zoom_in, color: Colors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'Toca para ampliar',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1096,16 +1312,21 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
   }) {
     final content = paragraphs[index].content;
     final isActive = _speech.activeParagraph == index;
+    final isSpeaking = isActive && _speech.state == ProbePlayback.speaking;
+    final activeWord = isSpeaking ? _speech.currentWordRange : null;
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: isActive
-              ? Theme.of(context).colorScheme.primaryContainer
+              ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35)
               : Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+            color: isActive
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outlineVariant,
+            width: isActive ? 1.5 : 1.0,
           ),
         ),
         child: Padding(
@@ -1130,9 +1351,11 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
               ReadingParagraph(
                 text: content,
                 fontSize: _fontSize,
+                activeWordRange: activeWord,
                 onSelection: (range) => setState(() {
                   _selectedParagraph = index;
                   _selection = range?.extract(content);

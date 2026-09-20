@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../../core/storage/app_database.dart';
+import '../auth/auth_scope.dart';
 import '../reader/book_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -138,6 +139,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
+  String _friendlyLocale(String locale) => switch (locale) {
+    'en-US' => 'English',
+    'en-GB' => 'English (UK)',
+    'es-MX' => 'Español',
+    _ => locale,
+  };
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -156,6 +164,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           const Text('Mis libros'),
         ],
       ),
+      actions: [
+        IconButton(
+          tooltip: 'Cerrar sesión',
+          onPressed: () => AuthScope.of(context).service.signOut(),
+          icon: const Icon(Icons.logout_outlined),
+        ),
+      ],
     ),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: _createBook,
@@ -217,9 +232,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   : constraints.maxWidth >= 560
                   ? 2
                   : 1,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 1.55,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 2.1,
             ),
             itemBuilder: (context, index) {
               final book = books[index];
@@ -228,32 +243,52 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   onTap: () => _open(book),
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
+                        Container(
+                          width: 44,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.menu_book_outlined, size: 28),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
                                 book.title,
-                                style: Theme.of(context).textTheme.titleLarge,
+                                style: Theme.of(context).textTheme.titleMedium,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            IconButton(
-                              tooltip: 'Eliminar libro',
-                              onPressed: () => _delete(book),
-                              icon: const Icon(Icons.delete_outline),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              Text(
+                                'Leer en ${_friendlyLocale(book.learningLocale)}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
                         ),
-                        const Spacer(),
-                        Text('Idioma: ${book.learningLocale}'),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Actualizado: ${book.updatedAt.toLocal().toString().substring(0, 16)}',
+                        const Icon(
+                          Icons.chevron_right_outlined,
+                          size: 28,
+                        ),
+                        IconButton(
+                          tooltip: 'Eliminar libro',
+                          onPressed: () => _delete(book),
+                          icon: const Icon(Icons.delete_outline),
                         ),
                       ],
                     ),

@@ -1,0 +1,132 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      build_name:
+        description: "Version name (ej. 0.2.0). Si se deja vacío se usa el tag o 0.1.0."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: "3.47.4"
+  JAVA_VERSION: "17"
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolver versión
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.build_name }}" ]; then
+            BUILD_NAME="${{ inputs.build_name }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            BUILD_NAME="${GITHUB_REF_NAME#v}"
+          else
+            BUILD_NAME="$(grep '^version:' pubspec.yaml | sed -E 's/version: ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          fi
+          echo "build_name=${BUILD_NAME}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "Versión: ${BUILD_NAME}+${GITHUB_RUN_NUMBER}"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Analyze (lib)
+        run: flutter analyze lib
+
+      # Firma release opcional. Si no hay secrets, se usa la firma debug
+      # configurada en android/app/build.gradle.kts (válido para sideload/pruebas).
+      # Para Play Store configura estos secrets:
+      # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+      # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      # Nota: el contenido del secret se lee en `env` (permitido) y se
+      # comprueba en bash, porque `secrets` no está disponible en `if:`.
+      - name: Configurar firma release (si hay secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "Sin keystore: build con firma debug (solo pruebas/sideload)."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=$RUNNER_TEMP/release.keystore
+          EOF
+          echo "Firma release configurada."
+
+      - name: Build APK release
+        run: >
+          flutter build apk --release
+          --build-name="${{ steps.version.outputs.build_name }}"
+          --build-number="${{ steps.version.outputs.build_number }}"
+
+      - name: Build App Bundle release
+        run: >
+          flutter build appbundle --release
+          --build-name="${{ steps.version.outputs.build_name }}"
+          --build-number="${{ steps.version.outputs.build_number }}"
+
+      - name: Renombrar artefactos
+        run: |
+          VERSION="${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/MySchoolMyParents-Online-${VERSION}-android.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/MySchoolMyParents-Online-${VERSION}-android.aab"
+          ls -lh dist/
+
+      - name: Publicar en GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-android-{0}', steps.version.outputs.build_name) }}
+          name: "MySchoolMyParents Online Android ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}"
+          body: |
+            ## Android ${{ steps.version.outputs.build_name }}+${{ steps.version.outputs.build_number }}
+
+            - APK para instalación directa (sideload).
+            - AAB para Google Play.
+
+            > Sin keystore configurado el APK va firmado con claves debug (solo pruebas).
+            > Para distribución configura los secrets ANDROID_KEYSTORE_*.
+
+            Commit: ${{ github.sha }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.apk
+            dist/*.aab

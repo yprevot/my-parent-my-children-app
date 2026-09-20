@@ -1,7 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Necesario para el backend de autenticación en internet. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="MySchoolMyParents"
+        android:label="MySchoolMyParents Online"
         android:allowBackup="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

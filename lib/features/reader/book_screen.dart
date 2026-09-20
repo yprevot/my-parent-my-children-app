@@ -464,6 +464,23 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Icon(Icons.format_size_outlined, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Tamaño del texto',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+            Text(
+              '${_fontSize.round()} pt',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
         Semantics(
           label: 'Tamaño del texto, ${_fontSize.round()} puntos',
           child: Slider(
@@ -471,16 +488,16 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
             min: 18,
             max: 36,
             divisions: 9,
-            label: _fontSize.round().toString(),
+            label: '${_fontSize.round()} pt',
             onChanged: (v) => setState(() => _fontSize = v),
           ),
         ),
         if (paragraphs.isEmpty)
           const Padding(
-            padding: EdgeInsets.all(32),
+            padding: EdgeInsets.all(16),
             child: Text(
               'Todavía no hay páginas aprobadas. Añade una foto para empezar.',
-              style: TextStyle(fontSize: 20),
+              style: TextStyle(fontSize: 18),
             ),
           ),
       ],
@@ -496,8 +513,8 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
               children: [
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: controls,
+                    padding: const EdgeInsets.all(16),
+                    child: reading,
                   ),
                 ),
                 if (_error != null)
@@ -508,21 +525,21 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                       child: Text(_error!),
                     ),
                   ),
-                _audioSettingsCard(context),
-                if (pages.isNotEmpty)
-                  _pagesCard(context, pages, jobs, paragraphs),
                 for (final draft in drafts)
                   _draftCard(
                     context,
                     draft,
                     imagePath: jobsById[draft.jobId]?.imagePath,
                   ),
+                if (pages.isNotEmpty)
+                  _pagesCard(context, pages, jobs, paragraphs),
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: reading,
+                    padding: const EdgeInsets.all(16),
+                    child: controls,
                   ),
                 ),
+                _audioSettingsCard(context),
               ],
             ),
           ),
@@ -540,146 +557,162 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
               item.locale.split('-').first.toLowerCase() == learningLanguage,
         )
         .toList();
+    String friendlyLearning() => switch (_learningLocale) {
+      'en-US' => 'English',
+      'en-GB' => 'English (UK)',
+      'es-MX' => 'Español',
+      _ => _learningLocale,
+    };
+    final subtitle = selected == null
+        ? 'Leer en ${friendlyLearning()} · elige voz'
+        : 'Leer en ${friendlyLearning()} · ${selected.name}';
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Idiomas del libro',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _homeLocale == 'es-MX' ? _homeLocale : 'es-MX',
-              decoration: const InputDecoration(
-                labelText: 'Idioma nativo de la familia',
-              ),
-              items: const [
-                DropdownMenuItem(value: 'es-MX', child: Text('Español')),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _homeLocale = value);
-                unawaited(
-                  widget.database.updateBookLanguages(
-                    widget.book.id,
-                    homeLocale: value,
-                    learningLocale: _learningLocale,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _learningLocale,
-              decoration: const InputDecoration(
-                labelText: 'Idioma que vamos a leer',
-              ),
-              items: const [
-                DropdownMenuItem(value: 'en-US', child: Text('English')),
-                DropdownMenuItem(value: 'es-MX', child: Text('Español')),
-              ],
-              onChanged: _changeLearningLanguage,
-            ),
-            const Divider(height: 28),
-            Text(
-              'Voz de lectura',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<ProbeVoice>(
-              initialValue: selected,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: _speech.ready
-                    ? 'Voz para $_learningLocale'
-                    : 'Cargando voces…',
-                helperText: !_speech.ready
-                    ? null
-                    : selected == null
-                    ? 'Activa una voz de texto a voz en Ajustes del teléfono para habilitar la lectura.'
-                    : selected.requiresNetwork == true
-                    ? 'Esta voz requiere conexión.'
-                    : 'La voz local funciona sin conexión.',
-              ),
-              items: filteredVoices
-                  .map(
-                    (item) => DropdownMenuItem(
-                      value: item,
-                      child: Text('${item.name} (${item.locale})'),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        leading: const Icon(Icons.tune_outlined),
+        title: const Text('Idioma y voz'),
+        subtitle: Text(subtitle),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _homeLocale == 'es-MX' ? _homeLocale : 'es-MX',
+                decoration: const InputDecoration(
+                  labelText: 'Idioma nativo de la familia',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'es-MX', child: Text('Español')),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _homeLocale = value);
+                  unawaited(
+                    widget.database.updateBookLanguages(
+                      widget.book.id,
+                      homeLocale: value,
+                      learningLocale: _learningLocale,
                     ),
-                  )
-                  .toList(),
-              onChanged: (voice) => voice == null ? null : _selectVoice(voice),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _openTtsSettings,
-                icon: const Icon(Icons.settings_outlined),
-                label: const Text('Configurar voz del teléfono'),
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('Velocidad'),
-                Expanded(
-                  child: Semantics(
-                    label: 'Velocidad de lectura',
-                    child: Slider(
-                      value: _speech.rate,
-                      min: .2,
-                      max: .8,
-                      divisions: 12,
-                      label: _speech.rate.toStringAsFixed(2),
-                      onChanged: (value) => unawaited(_setSpeechRate(value)),
-                    ),
-                  ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _learningLocale,
+                decoration: const InputDecoration(
+                  labelText: 'Idioma que vamos a leer',
                 ),
-                Text(
-                  _speech.rate < .4
-                      ? 'Lenta'
-                      : _speech.rate > .6
-                      ? 'Rápida'
-                      : 'Normal',
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _speech.rate <= .2
-                      ? null
-                      : () => unawaited(
-                          _setSpeechRate((_speech.rate - .05).clamp(.2, .8)),
-                        ),
-                  icon: const Icon(Icons.slow_motion_video_outlined),
-                  label: const Text('Más lento'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _speech.rate >= .8
-                      ? null
-                      : () => unawaited(
-                          _setSpeechRate((_speech.rate + .05).clamp(.2, .8)),
-                        ),
-                  icon: const Icon(Icons.speed_outlined),
-                  label: const Text('Más rápido'),
-                ),
-              ],
-            ),
-            if (_speech.error != null)
+                items: const [
+                  DropdownMenuItem(value: 'en-US', child: Text('English')),
+                  DropdownMenuItem(value: 'es-MX', child: Text('Español')),
+                ],
+                onChanged: _changeLearningLanguage,
+              ),
+              const Divider(height: 28),
               Text(
-                _speech.error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                'Voz de lectura',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-          ],
-        ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<ProbeVoice>(
+                initialValue: selected,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: _speech.ready
+                      ? 'Voz para ${friendlyLearning()}'
+                      : 'Cargando voces…',
+                  helperText: !_speech.ready
+                      ? null
+                      : selected == null
+                      ? 'Activa una voz de texto a voz en Ajustes del teléfono para habilitar la lectura.'
+                      : selected.requiresNetwork == true
+                      ? 'Esta voz requiere conexión.'
+                      : 'La voz local funciona sin conexión.',
+                ),
+                items: filteredVoices
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text('${item.name} (${item.locale})'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (voice) =>
+                    voice == null ? null : _selectVoice(voice),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _openTtsSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Configurar voz del teléfono'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.speed_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Velocidad de lectura',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
+                  Text(
+                    _speech.rate < .4
+                        ? 'Lenta'
+                        : _speech.rate > .6
+                        ? 'Rápida'
+                        : 'Normal',
+                  ),
+                ],
+              ),
+              Semantics(
+                label: 'Velocidad de lectura',
+                child: Slider(
+                  value: _speech.rate,
+                  min: .2,
+                  max: .8,
+                  divisions: 12,
+                  label: _speech.rate.toStringAsFixed(2),
+                  onChanged: (value) => unawaited(_setSpeechRate(value)),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _speech.rate <= .2
+                        ? null
+                        : () => unawaited(
+                            _setSpeechRate((_speech.rate - .05).clamp(.2, .8)),
+                          ),
+                    icon: const Icon(Icons.slow_motion_video_outlined),
+                    label: const Text('Más lento'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _speech.rate >= .8
+                        ? null
+                        : () => unawaited(
+                            _setSpeechRate((_speech.rate + .05).clamp(.2, .8)),
+                          ),
+                    icon: const Icon(Icons.speed_outlined),
+                    label: const Text('Más rápido'),
+                  ),
+                ],
+              ),
+              if (_speech.error != null)
+                Text(
+                  _speech.error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -771,29 +804,44 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                     subtitle: Text(
                       '$status · ${pageParagraphs.length} párrafo(s)',
                     ),
-                    trailing: Wrap(
-                      spacing: 0,
-                      children: [
-                        IconButton(
-                          tooltip: 'Subir página',
-                          onPressed: index == 0
-                              ? null
-                              : () => _movePage(index, index - 1),
-                          icon: const Icon(Icons.keyboard_arrow_up),
+                    trailing: PopupMenuButton<String>(
+                      tooltip: 'Opciones de página',
+                      onSelected: (value) {
+                        if (value == 'up') {
+                          _movePage(index, index - 1);
+                        } else if (value == 'down') {
+                          _movePage(index, index + 1);
+                        } else if (value == 'reprocess') {
+                          _reprocess(page);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'up',
+                          enabled: index != 0,
+                          child: const ListTile(
+                            leading: Icon(Icons.keyboard_arrow_up),
+                            title: Text('Subir página'),
+                            dense: true,
+                          ),
                         ),
-                        IconButton(
-                          tooltip: 'Bajar página',
-                          onPressed: index == pages.length - 1
-                              ? null
-                              : () => _movePage(index, index + 1),
-                          icon: const Icon(Icons.keyboard_arrow_down),
+                        PopupMenuItem(
+                          value: 'down',
+                          enabled: index != pages.length - 1,
+                          child: const ListTile(
+                            leading: Icon(Icons.keyboard_arrow_down),
+                            title: Text('Bajar página'),
+                            dense: true,
+                          ),
                         ),
-                        IconButton(
-                          tooltip: 'Reprocesar foto',
-                          onPressed: page.originalPath == null || _busy
-                              ? null
-                              : () => _reprocess(page),
-                          icon: const Icon(Icons.refresh),
+                        PopupMenuItem(
+                          value: 'reprocess',
+                          enabled: page.originalPath != null && !_busy,
+                          child: const ListTile(
+                            leading: Icon(Icons.refresh),
+                            title: Text('Reprocesar foto'),
+                            dense: true,
+                          ),
                         ),
                       ],
                     ),
@@ -865,13 +913,21 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Revisa esta página antes de añadirla',
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              const Icon(Icons.rate_review_outlined),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Pendiente por revisar',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
-          Text(
-            'Compara el texto detectado con la foto. Corrige palabras, separa párrafos o elimina encabezados antes de confirmarlo.',
+          const Text(
+            'Compara con la foto. Corrige, separa párrafos con línea en blanco o quita encabezados antes de añadirla.',
           ),
           if (imagePath != null) ...[
             const SizedBox(height: 12),
@@ -893,7 +949,7 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
           ],
           const SizedBox(height: 12),
           Text(
-            'Vista previa (${draft.rawText.length} caracteres):',
+            'Texto detectado (${draft.rawText.length} caracteres):',
             style: Theme.of(context).textTheme.labelLarge,
           ),
           const SizedBox(height: 4),
@@ -901,7 +957,10 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
             width: double.infinity,
             constraints: const BoxConstraints(maxHeight: 180),
             padding: const EdgeInsets.all(12),
-            color: Theme.of(context).colorScheme.surface,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: SingleChildScrollView(
               child: SelectableText(
                 draft.rawText.isEmpty ? 'No se detectó texto.' : draft.rawText,
@@ -910,11 +969,12 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 8),
           const Text(
-            'El texto no entra al libro ni a la lectura hasta que pulses «Añadir al libro».',
+            'Solo entra al libro y a la lectura al pulsar «Añadir al libro».',
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               FilledButton.icon(
                 onPressed: () => _approveDraft(draft),
@@ -924,7 +984,7 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
               OutlinedButton.icon(
                 onPressed: () => _editDraft(draft),
                 icon: const Icon(Icons.edit_outlined),
-                label: const Text('Editar texto'),
+                label: const Text('Corregir texto'),
               ),
               OutlinedButton.icon(
                 onPressed: () => _retryDraft(draft),
@@ -1035,14 +1095,21 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
     required int paragraphNumber,
   }) {
     final content = paragraphs[index].content;
+    final isActive = _speech.activeParagraph == index;
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Card(
-        color: _speech.activeParagraph == index
-            ? Theme.of(context).colorScheme.primaryContainer
-            : null,
+      padding: const EdgeInsets.only(top: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isActive
+              ? Theme.of(context).colorScheme.primaryContainer
+              : Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1054,12 +1121,12 @@ class _BookScreenState extends State<BookScreen> with WidgetsBindingObserver {
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Escuchar párrafo',
+                  FilledButton.tonalIcon(
                     onPressed: _speech.voice == null
                         ? null
                         : () => _listen(paragraphs, index: index),
-                    icon: const Icon(Icons.volume_up_outlined),
+                    icon: const Icon(Icons.volume_up_outlined, size: 20),
+                    label: const Text('Escuchar'),
                   ),
                 ],
               ),

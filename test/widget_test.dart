@@ -117,6 +117,85 @@ void main() {
     );
     expect(selectableText.textSpan, isNotNull);
   });
+
+  testWidgets('Pulsar una palabra muestra tooltip con significado y opción de volver a escuchar', (
+    tester,
+  ) async {
+    String? relistenedWord;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ReadingParagraph(
+              text: 'The cat is small.',
+              onSelection: _ignoreSelection,
+              onListen: (word) => relistenedWord = word,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    // Offset de la palabra 'cat' (índice 5)
+    final caret = render.getLocalRectForCaret(const TextPosition(offset: 5));
+    await tester.tapAt(render.localToGlobal(caret.center));
+    await tester.pumpAndSettle();
+
+    // Comprobar que el tooltip aparece con la definición y el botón de volver a escuchar
+    expect(find.text('Volver a escuchar'), findsOneWidget);
+    expect(find.textContaining('Gato'), findsOneWidget);
+
+    // Pulsar el botón para volver a escuchar
+    await tester.tap(find.text('Volver a escuchar'));
+    await tester.pumpAndSettle();
+
+    expect(relistenedWord, 'cat');
+  });
+
+  testWidgets('Pulsar volver a escuchar entrega rango exacto para marcar la palabra', (
+    tester,
+  ) async {
+    String? spokenText;
+    TextRangeSlice? spokenRange;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ReadingParagraph(
+              text: 'The cat is small.',
+              onSelection: _ignoreSelection,
+              onListen: (word) {},
+              onListenRange: (word, range) {
+                spokenText = word;
+                spokenRange = range;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    final caret = render.getLocalRectForCaret(const TextPosition(offset: 5));
+    await tester.tapAt(render.localToGlobal(caret.center));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Volver a escuchar'), findsOneWidget);
+    await tester.tap(find.text('Volver a escuchar'));
+    await tester.pumpAndSettle();
+
+    expect(spokenText, 'cat');
+    expect(spokenRange, isNotNull);
+    expect(spokenRange?.start, 4);
+    expect(spokenRange?.end, 7);
+  });
 }
 
 void _ignoreSelection(TextRangeSlice? _) {}

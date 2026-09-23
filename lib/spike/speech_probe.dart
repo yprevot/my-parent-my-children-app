@@ -20,7 +20,7 @@ class ProbeVoice {
 class SpeechProbe extends ChangeNotifier {
   SpeechProbe({FlutterTts? engine}) : _engine = engine ?? FlutterTts();
   final FlutterTts _engine;
-  static const _settingsChannel = MethodChannel('images_to_book/ocr');
+  static const _settingsChannel = MethodChannel('online.myschoolmyparents/ocr');
   List<ProbeVoice> voices = [];
   ProbeVoice? voice;
   ProbePlayback state = ProbePlayback.idle;
@@ -43,6 +43,7 @@ class SpeechProbe extends ChangeNotifier {
   int _segmentBase = 0;
   String _spokenText = '';
   bool _acceptProgress = false;
+  TextRangeSlice? _wordRange;
   Future<void> _commands = Future<void>.value();
 
   TextRangeSlice? get currentWordRange {
@@ -92,8 +93,13 @@ class SpeechProbe extends ChangeNotifier {
         return;
       }
       if (start < 0 || end > text.length || end <= start) return;
-      rangeStart = _segmentBase + start;
-      rangeEnd = _segmentBase + end;
+      if (_wordRange != null) {
+        rangeStart = _wordRange!.start + start;
+        rangeEnd = (_wordRange!.start + end).clamp(rangeStart, _wordRange!.end);
+      } else {
+        rangeStart = _segmentBase + start;
+        rangeEnd = _segmentBase + end;
+      }
       _offset = rangeStart;
       currentParagraph = _paragraph + _paragraphBase;
       currentOffset = rangeStart;
@@ -158,6 +164,7 @@ class SpeechProbe extends ChangeNotifier {
     int startParagraph = 0,
     int startOffset = 0,
     int activeParagraphBase = 0,
+    TextRangeSlice? wordRange,
   }) async {
     if (voice == null) {
       throw StateError('Configura una voz para el idioma elegido.');
@@ -169,6 +176,7 @@ class SpeechProbe extends ChangeNotifier {
     _offset = startOffset;
     currentParagraph = activeParagraphBase + startParagraph;
     currentOffset = startOffset;
+    _wordRange = wordRange;
     await _run(++_generation);
   }
 
@@ -186,7 +194,12 @@ class SpeechProbe extends ChangeNotifier {
           if (generation != _generation || _closed) return;
           _segmentBase = base + slice.start;
           _offset = _segmentBase;
-          rangeStart = rangeEnd = _segmentBase;
+          if (_wordRange != null) {
+            rangeStart = _wordRange!.start;
+            rangeEnd = _wordRange!.end;
+          } else {
+            rangeStart = rangeEnd = _segmentBase;
+          }
           _spokenText = slice.extract(text.substring(base));
           if (_spokenText.trim().isEmpty) continue;
           state = ProbePlayback.speaking;
@@ -207,12 +220,14 @@ class SpeechProbe extends ChangeNotifier {
       currentParagraph = 0;
       currentOffset = 0;
       rangeStart = rangeEnd = 0;
+      _wordRange = null;
       _changed();
     } catch (_) {
       if (generation != _generation || _closed) return;
       _acceptProgress = false;
       state = ProbePlayback.failed;
       rangeStart = rangeEnd = 0;
+      _wordRange = null;
       error = 'No pudimos reproducir el texto. Comprueba la voz instalada.';
       _changed();
       rethrow;
@@ -225,6 +240,7 @@ class SpeechProbe extends ChangeNotifier {
     }
     ++_generation;
     _acceptProgress = false;
+    _wordRange = null;
     state = ProbePlayback.paused;
     _commands = _commands.then((_) async {
       await _engine.stop();
@@ -245,6 +261,7 @@ class SpeechProbe extends ChangeNotifier {
     state = ProbePlayback.idle;
     activeParagraph = -1;
     rangeStart = rangeEnd = 0;
+    _wordRange = null;
     _commands = _commands.then((_) async {
       await _engine.stop();
     });

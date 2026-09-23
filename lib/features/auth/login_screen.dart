@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/app_version.dart';
 import 'auth_scope.dart';
 import 'auth_service.dart';
 import 'auth_validators.dart';
@@ -199,6 +200,15 @@ class _LoginScreenState extends State<LoginScreen> {
             child: const Text('Crear cuenta'),
           ),
         ],
+      ),
+      const SizedBox(height: 18),
+      Text(
+        AppVersion.displayString,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Color(0xff94a3b8),
+          fontWeight: FontWeight.w500,
+        ),
       ),
     ],
   );

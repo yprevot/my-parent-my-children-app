@@ -48,3 +48,14 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Android signing keys & credentials
+key.properties
+*.keystore
+*.jks
+
+# Release installers and binaries
+dist/
+*.apk
+
+

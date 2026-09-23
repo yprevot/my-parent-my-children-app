@@ -479,6 +479,66 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Replaces the paragraphs of an already-approved page with [edited] text,
+  /// re-normalises all paragraph orderKeys across the book, and bumps the
+  /// book's [updatedAt] timestamp.
+  Future<void> updatePageParagraphs({
+    required String bookId,
+    required String pageId,
+    required List<String> edited,
+  }) async {
+    final now = DateTime.now();
+    await transaction(() async {
+      // 1. Preserve the lowest existing orderKey so the page keeps its slot.
+      final existing =
+          await (select(paragraphs)..where((p) => p.pageId.equals(pageId)))
+              .get();
+      var order = existing.isEmpty
+          ? await nextParagraphOrder(bookId)
+          : existing.map((row) => row.orderKey).reduce((a, b) => a < b ? a : b);
+
+      // 2. Remove old paragraphs for this page.
+      await (delete(paragraphs)..where((p) => p.pageId.equals(pageId))).go();
+
+      // 3. Insert the edited paragraphs.
+      for (final value in edited.where((v) => v.trim().isNotEmpty)) {
+        await into(paragraphs).insert(
+          ParagraphsCompanion.insert(
+            id: '${pageId}_$order',
+            bookId: bookId,
+            pageId: pageId,
+            orderKey: order++,
+            content: value.trim(),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+
+      // 4. Re-normalise orderKeys across the entire book.
+      final allPages = await (select(pages)
+            ..where((page) => page.bookId.equals(bookId))
+            ..orderBy([(page) => OrderingTerm.asc(page.orderKey)]))
+          .get();
+      var paragraphOrder = 0;
+      for (final page in allPages) {
+        final pageParagraphs = await (select(paragraphs)
+              ..where((p) => p.pageId.equals(page.id))
+              ..orderBy([(p) => OrderingTerm.asc(p.orderKey)]))
+            .get();
+        for (final paragraph in pageParagraphs) {
+          await (update(paragraphs)
+                ..where((row) => row.id.equals(paragraph.id)))
+              .write(ParagraphsCompanion(orderKey: Value(paragraphOrder++)));
+        }
+      }
+
+      // 5. Bump book timestamp.
+      await (update(books)..where((book) => book.id.equals(bookId))).write(
+        BooksCompanion(updatedAt: Value(now)),
+      );
+    });
+  }
+
   Future<void> deletePage(String pageId) async {
     final page = await (select(pages)..where((p) => p.id.equals(pageId))).getSingleOrNull();
     if (page == null) return;
@@ -538,6 +598,72 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  Future<List<Page>> getApprovedPages(String bookId) =>
+      (select(pages)
+            ..where((p) => p.bookId.equals(bookId) & p.status.equals('approved'))
+            ..orderBy([(p) => OrderingTerm.asc(p.orderKey)]))
+          .get();
+
+  Future<List<Paragraph>> getBookParagraphs(String bookId) =>
+      (select(paragraphs)
+            ..where((p) => p.bookId.equals(bookId))
+            ..orderBy([(p) => OrderingTerm.asc(p.orderKey)]))
+          .get();
+
+  Future<Book> importProcessedBook({
+    required String title,
+    required String homeLocale,
+    required String learningLocale,
+    double speechRate = 0.45,
+    String? voiceId,
+    required List<ImportedPageData> pagesData,
+  }) async {
+    final now = DateTime.now();
+    final bookId = 'imported_${now.microsecondsSinceEpoch}';
+    return await transaction(() async {
+      await into(books).insert(
+        BooksCompanion.insert(
+          id: bookId,
+          title: title,
+          homeLocale: Value(homeLocale),
+          learningLocale: Value(learningLocale),
+          voiceId: Value(voiceId),
+          speechRate: Value(speechRate),
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      var globalParagraphOrder = 0;
+      for (final pageData in pagesData) {
+        final pageId = '${bookId}_p${pageData.orderKey}';
+        await into(pages).insert(
+          PagesCompanion.insert(
+            id: pageId,
+            bookId: bookId,
+            orderKey: pageData.orderKey,
+            derivedPath: Value(pageData.imagePath),
+            originalPath: Value(pageData.imagePath),
+            status: const Value('approved'),
+            createdAt: now,
+          ),
+        );
+        for (final para in pageData.paragraphs) {
+          await into(paragraphs).insert(
+            ParagraphsCompanion.insert(
+              id: '${pageId}_$globalParagraphOrder',
+              bookId: bookId,
+              pageId: pageId,
+              orderKey: globalParagraphOrder++,
+              content: para.content,
+              localeOverride: Value(para.localeOverride),
+            ),
+          );
+        }
+      }
+      return (await (select(books)..where((b) => b.id.equals(bookId))).getSingle());
+    });
+  }
+
   void _deleteFileIfExists(String? path) {
     if (path != null && path.isNotEmpty) {
       try {
@@ -548,6 +674,30 @@ class AppDatabase extends _$AppDatabase {
       } catch (_) {}
     }
   }
+}
+
+class ImportedPageData {
+  final int orderKey;
+  final String? originalId;
+  final String? imagePath;
+  final List<ImportedParagraphData> paragraphs;
+
+  const ImportedPageData({
+    required this.orderKey,
+    this.originalId,
+    this.imagePath,
+    required this.paragraphs,
+  });
+}
+
+class ImportedParagraphData {
+  final String content;
+  final String? localeOverride;
+
+  const ImportedParagraphData({
+    required this.content,
+    this.localeOverride,
+  });
 }
 
 Future<AppDatabase> openAppDatabase() async {

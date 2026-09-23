@@ -17,35 +17,45 @@ Future<String> transformImage(
   ImageTransformOptions options,
 ) async {
   if (options.quarterTurns == 0 && options.cropFactor >= .999) return source;
-  final bytes = await File(source).readAsBytes();
+  final file = File(source);
+  if (!await file.exists() || await file.length() == 0) return source;
+  final bytes = await file.readAsBytes();
   final target = '$source.adjusted.jpg';
 
-  final processedBytes = await Isolate.run(() {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) {
-      throw StateError('No se pudo leer la imagen para ajustarla.');
-    }
-    var output = decoded;
-    if (options.cropFactor < .999) {
-      final width = (decoded.width * options.cropFactor).round();
-      final height = (decoded.height * options.cropFactor).round();
-      output = img.copyCrop(
-        decoded,
-        x: ((decoded.width - width) / 2).round(),
-        y: ((decoded.height - height) / 2).round(),
-        width: width,
-        height: height,
-      );
-    }
-    for (var i = 0; i < options.quarterTurns.abs(); i++) {
-      output = img.copyRotate(
-        output,
-        angle: options.quarterTurns > 0 ? 90 : -90,
-      );
-    }
-    return img.encodeJpg(output, quality: 85);
-  });
+  try {
+    final processedBytes = await Isolate.run(() {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        return null;
+      }
+      var output = decoded;
+      if (options.cropFactor < .999) {
+        final width = (decoded.width * options.cropFactor).round();
+        final height = (decoded.height * options.cropFactor).round();
+        output = img.copyCrop(
+          decoded,
+          x: ((decoded.width - width) / 2).round(),
+          y: ((decoded.height - height) / 2).round(),
+          width: width,
+          height: height,
+        );
+      }
+      for (var i = 0; i < options.quarterTurns.abs(); i++) {
+        output = img.copyRotate(
+          output,
+          angle: options.quarterTurns > 0 ? 90 : -90,
+        );
+      }
+      return img.encodeJpg(output, quality: 85);
+    });
 
-  await File(target).writeAsBytes(processedBytes);
-  return target;
+    if (processedBytes != null) {
+      await File(target).writeAsBytes(processedBytes, flush: true);
+      return target;
+    }
+  } catch (_) {
+    // Fallback to source on decode / memory exception
+    return source;
+  }
+  return source;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'core/config/app_version.dart';
 import 'core/storage/app_database.dart';
 import 'core/sync/sync_api_client.dart';
 import 'core/sync/sync_engine.dart';
@@ -8,18 +9,19 @@ import 'features/auth/auth_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/library/library_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ImagesToBookBootstrap());
+  await AppVersion.init();
+  runApp(const MySchoolMyParentsBootstrap());
 }
 
-class ImagesToBookBootstrap extends StatefulWidget {
-  const ImagesToBookBootstrap({super.key});
+class MySchoolMyParentsBootstrap extends StatefulWidget {
+  const MySchoolMyParentsBootstrap({super.key});
   @override
-  State<ImagesToBookBootstrap> createState() => _ImagesToBookBootstrapState();
+  State<MySchoolMyParentsBootstrap> createState() => _MySchoolMyParentsBootstrapState();
 }
 
-class _ImagesToBookBootstrapState extends State<ImagesToBookBootstrap> {
+class _MySchoolMyParentsBootstrapState extends State<MySchoolMyParentsBootstrap> {
   late final Future<AppDatabase> _database = openAppDatabase();
   // Implementación temporal del backend en internet. Sustituir por el
   // cliente HTTP real sin cambiar las pantallas (mismo AuthService).
@@ -34,10 +36,10 @@ class _ImagesToBookBootstrapState extends State<ImagesToBookBootstrap> {
       future: _database,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return ImagesToBookApp(home: _DatabaseError(error: snapshot.error));
+          return MySchoolMyParentsApp(home: _DatabaseError(error: snapshot.error));
         }
         if (!snapshot.hasData) {
-          return const ImagesToBookApp(home: _LoadingScreen());
+          return const MySchoolMyParentsApp(home: _LoadingScreen());
         }
         final database = snapshot.data!;
         _syncEngine ??= SyncEngine(
@@ -45,7 +47,7 @@ class _ImagesToBookBootstrapState extends State<ImagesToBookBootstrap> {
           authService: _authService,
           apiClient: _apiClient,
         );
-        return ImagesToBookApp(
+        return MySchoolMyParentsApp(
           home: AuthGate(
             signInScreen: const LoginScreen(),
             signedInBuilder: (_) => LibraryScreen(
@@ -73,25 +75,99 @@ class _DatabaseError extends StatelessWidget {
     padding: const EdgeInsets.all(24), child: Text('No se pudo abrir la biblioteca local.\n$error', textAlign: TextAlign.center))));
 }
 
-class ImagesToBookApp extends StatelessWidget {
-  const ImagesToBookApp({super.key, this.home});
+class MySchoolMyParentsApp extends StatelessWidget {
+  const MySchoolMyParentsApp({super.key, this.home});
   final Widget? home;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'MySchoolMyParents Online',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff4f46e5)),
-      scaffoldBackgroundColor: const Color(0xfff7f7fc),
+      fontFamily: 'Nunito',
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xff1d4ed8),
+        primary: const Color(0xff1d4ed8),
+        onPrimary: Colors.white,
+        primaryContainer: const Color(0xffdbeafe),
+        onPrimaryContainer: const Color(0xff1e3a8a),
+        secondary: const Color(0xffd97706),
+        onSecondary: Colors.white,
+        secondaryContainer: const Color(0xfffef3c7),
+        onSecondaryContainer: const Color(0xff78350f),
+        tertiary: const Color(0xff059669),
+        onTertiary: Colors.white,
+        tertiaryContainer: const Color(0xffd1fae5),
+        onTertiaryContainer: const Color(0xff064e3b),
+        surface: const Color(0xfffdfbf7),
+        onSurface: const Color(0xff1e293b),
+        surfaceContainerLow: const Color(0xfff8f4ec),
+        surfaceContainer: const Color(0xfff2ede2),
+        outlineVariant: const Color(0xffe8e2d8),
+      ),
+      scaffoldBackgroundColor: const Color(0xfffdfbf7),
       useMaterial3: true,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
+      cardTheme: CardThemeData(
+        elevation: 1,
+        shadowColor: const Color(0x120f172a),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xffede6db), width: 1),
+        ),
+        color: Colors.white,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xfffdfbf7),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: Color(0xff1e293b),
+        ),
+      ),
+      tabBarTheme: const TabBarThemeData(
+        labelColor: Color(0xff1d4ed8),
+        unselectedLabelColor: Color(0xff64748b),
+        indicatorColor: Color(0xff1d4ed8),
+        indicatorSize: TabBarIndicatorSize.tab,
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: const Color(0xfff59e0b),
+        foregroundColor: const Color(0xff1e293b),
+        elevation: 2.5,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xffe2d9cd)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xff1d4ed8), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.white,
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          side: const BorderSide(color: Color(0xffcbd5e1), width: 1.2),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        backgroundColor: const Color(0xff1e293b),
       ),
     ),
     home: home,

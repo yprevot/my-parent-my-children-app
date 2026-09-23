@@ -12,13 +12,29 @@ class AuthScope extends StatefulWidget {
   final Widget child;
 
   static AuthScopeState of(BuildContext context) {
-    final state = context.findAncestorStateOfType<AuthScopeState>();
-    assert(state != null, 'AuthScope no encontrado en el árbol.');
-    return state!;
+    final inherited =
+        context.dependOnInheritedWidgetOfExactType<_AuthScopeInherited>();
+    assert(inherited != null, 'AuthScope no encontrado en el árbol.');
+    return inherited!.state;
   }
 
   @override
   State<AuthScope> createState() => AuthScopeState();
+}
+
+class _AuthScopeInherited extends InheritedWidget {
+  const _AuthScopeInherited({
+    required this.state,
+    required this.user,
+    required super.child,
+  });
+
+  final AuthScopeState state;
+  final AuthUser? user;
+
+  @override
+  bool updateShouldNotify(_AuthScopeInherited oldWidget) =>
+      user != oldWidget.user;
 }
 
 class AuthScopeState extends State<AuthScope> {
@@ -44,7 +60,11 @@ class AuthScopeState extends State<AuthScope> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => _AuthScopeInherited(
+    state: this,
+    user: _user,
+    child: widget.child,
+  );
 }
 
 /// Decide qué mostrar según la sesión:
